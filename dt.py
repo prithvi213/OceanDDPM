@@ -6,10 +6,12 @@ from ocean_dataset import OceanDataset
 from diffusion_model import Diffusion, DiffusionModel
 import numpy as np
 import os
+import time
 #from torch.profiler import profile, record_function
 
 # Initialize device and the masked locations
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(device)
 mask = torch.zeros((169, 300), dtype=torch.bool)
 
 with open('coordinates.txt', 'r') as file:
@@ -29,7 +31,7 @@ num_epochs = 10
 epoch_losses = []
 cumulative_mses = []
 cumulative_mse_loss = 0.0
-checkpoint_path = 'checkpoint_epoch_10.pth'
+#checkpoint_path = 'checkpoint_epoch_10.pth'
 
 """
 with torch.profiler.profile(
@@ -52,16 +54,18 @@ for epoch in range(num_epochs):
     for batch_idx, data in enumerate(dataloader):
         #with record_function("get_data"):
         # Get the 16 samples from the dataloader
-        x_0 = data.to(device).to(dtype=torch.float8_e4m3fn)
+        batch_start_time = time.perf_counter()
+        batch_loss = 0.0
+        x_0 = data.to(device).float()
         batch_size = x_0.size(0)
 
         #with record_function("expand_mask"):
         # Expand the mask for batch use (Filtering out masked values from noise and mse loss)
-        mask_expanded = mask.unsqueeze(0).expand(batch_size, -1, -1, -1).to(device).to(dtype=torch.float8_e4m3fn)
+        mask_expanded = mask.unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
 
         #with record_function("random_ts"):
         # Take a time step from random and start the zero-gradient for optimizer
-        t = torch.randint(0, diffusion.num_steps, (batch_size,), dtype=torch.float8_e4m3fn, device=device)
+        t = torch.randint(0, diffusion.num_steps, (batch_size,), dtype=torch.float32, device=device)
         optimizer.zero_grad()
         
         #with record_function("forward_diffusion"):
@@ -77,9 +81,10 @@ for epoch in range(num_epochs):
         #with record_function("calculate_MSE_loss"):
         # Calculate the loss
         mse_loss = (noise_pred - noise) ** 2
-        ocean_elements = (~mask_expanded).to(dtype=torch.float8_e4m3fn).sum()
+        ocean_elements = (~mask_expanded).sum()
         loss = mse_loss.sum() / ocean_elements
         curr_epoch_loss += loss.item()
+        batch_loss += loss.item()
 
         #with record_function("backward_propagation"):
         # Apply backward propagation
@@ -92,7 +97,8 @@ for epoch in range(num_epochs):
             print(f"Epoch [{epoch+1}/{num_epochs}], Step [{batch_idx+1}], Loss: {average_loss:.10f}")
             total_loss = 0.0
         
-        print(batch_idx)
+        batch_time = time.perf_counter() - batch_start_time
+        print(f"Batch: {batch_idx}, Batch Time: {batch_time}, Batch Loss: {batch_loss}")
 
     avg_epoch_loss = curr_epoch_loss / len(dataloader)
     epoch_losses.append(avg_epoch_loss)

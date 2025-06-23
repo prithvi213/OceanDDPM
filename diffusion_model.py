@@ -87,7 +87,8 @@ class Diffusion:
         self.alpha_cum_prod = self.alpha_cum_prod.to(device)
 
     def forward_diffusion(self, x_0, t, mask):
-        noise = torch.randn_like(x_0, device=self.device, dtype=torch.float8_e4m3fn)
+        noise = torch.randn_like(x_0, device=self.device, dtype=torch.float32)
+        t = t.to(dtype=torch.long)
         alpha_cum_prod = self.alpha_cum_prod[t]
         sqrt_alpha_cum_prod = torch.sqrt(alpha_cum_prod).view(-1, 1, 1, 1)
         sqrt_1_minus_alpha_cum_prod = torch.sqrt(1.0 - alpha_cum_prod).view(-1, 1, 1, 1)
