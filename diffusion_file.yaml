@@ -13,11 +13,11 @@ spec:
       value: "expandable_segments:True"
     resources:
       requests:
-        nvidia.com/a40: 1
+        nvidia.com/gpu: 1
         memory: "30Gi"
         cpu: "1"
       limits:
-        nvidia.com/a40: 1
+        nvidia.com/gpu: 1
         memory: "30Gi"
         cpu: "1"
     volumeMounts:
