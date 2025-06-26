@@ -8,14 +8,18 @@ spec:
   - name: gpu-container
     image: gitlab-registry.nrp-nautilus.io/prp/jupyter-stack/tensorflow
     command: ["sleep", "infinity"]
+    env:
+    - name: PYTORCH_CUDA_ALLOC_CONF
+      value: "expandable_segments:True"
     resources:
       requests:
+        nvidia.com/a40: 1
         memory: "30Gi"
         cpu: "1"
       limits:
-        nvidia.com/gpu: 1
+        nvidia.com/a40: 1
         memory: "30Gi"
-        cpu: "2"
+        cpu: "1"
     volumeMounts:
     - mountPath: /tmp
       name: app-data-volume
