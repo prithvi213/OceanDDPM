@@ -21,7 +21,7 @@ mask = torch.load('mask.pth', map_location='cpu')
 combined_data = [[] for _ in range(4)]  # One list per channel
 
 # Step 1: Load and combine data from all 1,000 .pt files
-for i in range(4000, 6000, 1):
+for i in range(0, 1000, 1):
     file_path = os.path.join(data_dir, f"data_{i+1:04d}.pt")  # Adjust filename pattern as needed
     if os.path.exists(file_path):
         # Load the .pt file (assumes tensor of shape 4 x 169 x 300)
@@ -52,7 +52,7 @@ for channel in range(4):
 print(combined_data)
 
 # Create an xarray DataArray
-sample_index = 69 # or any index from 0 to 999
+sample_index = 1 # or any index from 0 to 999
 sample = combined_data[sample_index]  # shape: (4, 169, 300)
 
 if hasattr(sample, 'numpy'):

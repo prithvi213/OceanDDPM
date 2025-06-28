@@ -27,7 +27,7 @@ dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
 model = DiffusionModel().to(device)
 diffusion = Diffusion(model, num_steps=1000, beta_0=1e-4, beta_f=0.02, device=device)
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
-num_epochs = 20
+num_epochs = 100
 epoch_losses = []
 cumulative_mses = []
 cumulative_mse_loss = 0.0

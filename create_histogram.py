@@ -12,7 +12,7 @@ mask = torch.load('mask.pth', map_location='cpu')
 combined_data = [[] for _ in range(4)]  # One list per channel
 
 # Step 1: Load and combine data from all 1,000 .pt files
-for i in range(8766):
+for i in range(1000):
     file_path = os.path.join(data_dir, f"data_{i+1:04d}.pt")  # Adjust filename pattern as needed
     if os.path.exists(file_path):
         # Load the .pt file (assumes tensor of shape 4 x 169 x 300)
@@ -45,6 +45,7 @@ for channel in range(4):
 # Step 3: Plot histograms for each channel
 fig, axes = plt.subplots(2, 2, figsize=(10, 5))  # 2x2 grid for 4 channels
 axes = axes.flatten()  # Flatten for easy indexing
+print(combined_data)
 
 for channel in range(4):
     axes[channel].hist(combined_data[channel], edgecolor='black', bins=200, color=f'C{channel}', alpha=0.7)
