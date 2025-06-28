@@ -7,7 +7,6 @@ from diffusion_model import Diffusion, DiffusionModel
 import numpy as np
 import os
 import time
-#from torch.profiler import profile, record_function
 
 # Initialize device and the masked locations
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -23,29 +22,35 @@ mask = mask.unsqueeze(0).expand(4, -1, -1)
 
 # Initialize OceanDataset, DataLoader, Diffusion Model, Sampler, and Optimizer
 dataset = OceanDataset(data_dir="./preprocessed_data")
-dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
+dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 model = DiffusionModel().to(device)
 diffusion = Diffusion(model, num_steps=1000, beta_0=1e-4, beta_f=0.02, device=device)
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
-num_epochs = 20
+num_epochs = 450
 epoch_losses = []
 cumulative_mses = []
 cumulative_mse_loss = 0.0
-#checkpoint_path = 'checkpoint_epoch_10.pth'
+checkpoint_path = './checkpoint.pth'
 
+# Load checkpoint if exists
 """
-with torch.profiler.profile(
-    activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
-    schedule=torch.profiler.schedule(wait=1, warmup=1, active=1, repeat=1),
-    on_trace_ready=torch.profiler.tensorboard_trace_handler('/log/profiler_output'),  # Updated path
-    record_shapes=True,
-    profile_memory=True,
-    with_stack=True,
-    with_flops=True
-) as profiler:
+if os.path.exists(checkpoint_path):
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    start_epoch = checkpoint['epoch']
+    epoch_losses = checkpoint['epoch_losses']
+    cumulative_mse_loss = checkpoint['cumulative_mse_loss']
+    cumulative_mses = checkpoint['cumulative_mses']
+    print(f"Resuming training from epoch {start_epoch} (loaded from {checkpoint_path})")
+else:
+    print("No checkpoint found, starting training from epoch 1")
+    start_epoch = 0
 """
-# Training Loop Starts Here (50 Epochs)
-for epoch in range(num_epochs):
+start_epoch = 0
+
+# Training Loop Starts Here (450 Epochs)
+for epoch in range(start_epoch, start_epoch + num_epochs):
     # Start Training and Keep Track of Loss
     model.train()
     curr_epoch_loss = 0.0
@@ -98,7 +103,7 @@ for epoch in range(num_epochs):
         # If at the end of the batch, print step and calculated loss
         if batch_idx % 54 == 53:
             average_loss = every_10_batch_loss / 54
-            print(f"Epoch [{epoch+1}/{num_epochs}], Step [{batch_idx+1}], Loss: {average_loss:.10f}")
+            print(f"Epoch [{epoch+1}/{start_epoch + num_epochs}], Step [{batch_idx+1}], Loss: {average_loss:.10f}")
             total_loss = 0.0
             every_10_batch_loss = 0.0
         
@@ -109,4 +114,18 @@ for epoch in range(num_epochs):
     epoch_losses.append(avg_epoch_loss)
     cumulative_mse_loss += avg_epoch_loss
     cumulative_mses.append(cumulative_mse_loss)
-    print(f"Epoch [{epoch+1}/{num_epochs}] - Avg MSE: {avg_epoch_loss:.10f}, Cumulative MSE: {cumulative_mse_loss:.10f}")
+    print(f"Epoch [{epoch+1}/{start_epoch + num_epochs}] - Avg MSE: {avg_epoch_loss:.10f}, Cumulative MSE: {cumulative_mse_loss:.10f}")
+
+    if epoch % 50 == 49:
+        checkpoint = {
+            'epoch': epoch + 1,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'epoch_losses': epoch_losses,
+            'cumulative_mse_loss': cumulative_mse_loss,
+            'cumulative_mses': cumulative_mses,
+        }
+
+        checkpoint_path = f'checkpoint{epoch + 1}.pth'
+        torch.save(checkpoint, checkpoint_path)
+        print(f"Saved checkpoint at epoch {epoch+1} to {checkpoint_path}")
