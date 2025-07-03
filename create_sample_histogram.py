@@ -5,14 +5,14 @@ import matplotlib.pyplot as plt
 import math
 
 # Directory containing your 1,000 .pt files
-data_dir = "./new_data_200/"  # Replace with your directory path
+data_dir = "./new_data/"  # Replace with your directory path
 mask = torch.load('mask.pth', map_location='cpu')
 
 # List to store data for each channel
 combined_data = [[] for _ in range(4)]  # One list per channel
 
 # Step 1: Load and combine data from all 1,000 .pt files
-for i in range(100):
+for i in range(652):
     file_path = os.path.join(data_dir, f"sample_{i+1:04d}.pt")  # Adjust filename pattern as needed
     if os.path.exists(file_path):
         # Load the .pt file (assumes tensor of shape 4 x 169 x 300)
@@ -46,10 +46,10 @@ for channel in range(4):
     axes[channel].set_xlabel('Value')
     axes[channel].set_ylabel('Frequency')
 
-axes[0].set_xlim([34, 37])
+axes[0].set_xlim([24, 40])
 axes[1].set_xlim([-0.85, 0.75])
 axes[2].set_xlim([-1, 1.3])
-axes[3].set_xlim([-0.5, 0.7])
+axes[3].set_xlim([-2, 0.7])
 
 axes[0].set_title(f'Salinity Histogram')
 axes[1].set_title(f'Uo Histogram')

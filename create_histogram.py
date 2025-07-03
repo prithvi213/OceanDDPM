@@ -3,6 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+from scipy.stats import wasserstein_distance
 
 # Directory containing your 1,000 .pt files
 data_dir = "./preprocessed_data/"  # Replace with your directory path
@@ -12,7 +13,7 @@ mask = torch.load('mask.pth', map_location='cpu')
 combined_data = [[] for _ in range(4)]  # One list per channel
 
 # Step 1: Load and combine data from all 1,000 .pt files
-for i in range(8766):
+for i in range(2000):
     file_path = os.path.join(data_dir, f"data_{i+1:04d}.pt")  # Adjust filename pattern as needed
     if os.path.exists(file_path):
         # Load the .pt file (assumes tensor of shape 4 x 169 x 300)
@@ -51,7 +52,7 @@ for channel in range(4):
     axes[channel].set_xlabel('Value')
     axes[channel].set_ylabel('Frequency')
 
-axes[0].set_xlim([34, 37])
+axes[0].set_xlim([24, 37])
 axes[1].set_xlim([-0.85, 0.75])
 axes[2].set_xlim([-1, 1.3])
 axes[3].set_xlim([-0.5, 0.7])

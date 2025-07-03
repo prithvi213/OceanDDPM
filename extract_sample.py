@@ -14,14 +14,14 @@ import os
 from matplotlib.colors import ListedColormap, BoundaryNorm
 
 # Directory containing your 1,000 .pt files
-data_dir = "./new_data_200/"  # Replace with your directory path
+data_dir = "./new_data_newmodel/"  # Replace with your directory path
 mask = torch.load('mask.pth', map_location='cpu')
 
 # List to store data for each channel
 combined_data = [[] for _ in range(4)]  # One list per channel
 
 # Step 1: Load and combine data from all 1,000 .pt files
-for i in range(140):
+for i in range(478):
     file_path = os.path.join(data_dir, f"sample_{i+1:04d}.pt")  # Adjust filename pattern as needed
     if os.path.exists(file_path):
         # Load the .pt file (assumes tensor of shape 4 x 169 x 300)
@@ -47,7 +47,7 @@ mean = np.array([35.7845, -0.0201, 0.0664, 0.0718])
 std = np.array([1.7568, 0.2273, 0.2687, 0.2271])
 
 # Create an xarray DataArray
-sample_index = 50 # or any index from 0 to 999
+sample_index = 100 # or any index from 0 to 999
 sample = combined_data[sample_index]  # shape: (4, 169, 300)
 
 if hasattr(sample, 'numpy'):

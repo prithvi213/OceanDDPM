@@ -38,8 +38,6 @@ for i in range(4000, 6000, 1):
     else:
         print(f"File {file_path} not found")
 
-
-
 # Assuming combined_data is shaped [time, channel, lat, lon] after swapaxes
 combined_data = np.swapaxes(combined_data, 0, 1)  # shape becomes [1000, 4, 169, 300]
 print(combined_data.shape)

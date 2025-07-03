@@ -22,15 +22,15 @@ mask = mask.unsqueeze(0).expand(4, -1, -1)
 
 # Initialize OceanDataset, DataLoader, Diffusion Model, Sampler, and Optimizer
 dataset = OceanDataset(data_dir="./preprocessed_data")
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
 model = DiffusionModel().to(device)
 diffusion = Diffusion(model, num_steps=1000, beta_0=1e-4, beta_f=0.02, device=device)
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
-num_epochs = 450
+num_epochs = 100
 epoch_losses = []
 cumulative_mses = []
 cumulative_mse_loss = 0.0
-checkpoint_path = './checkpoint.pth'
+#checkpoint_path = './checkpoint.pth'
 
 # Load checkpoint if exists
 """
@@ -49,7 +49,7 @@ else:
 """
 start_epoch = 0
 
-# Training Loop Starts Here (450 Epochs)
+# Training Loop Starts Here (200 Epochs)
 for epoch in range(start_epoch, start_epoch + num_epochs):
     # Start Training and Keep Track of Loss
     model.train()
@@ -80,17 +80,18 @@ for epoch in range(start_epoch, start_epoch + num_epochs):
         x_t, noise = diffusion.forward_diffusion(x_0, t, mask_expanded)
         
         #with record_function("apply_to_model"):
-        noise_pred = model(x_t, t)
+        noise_pred = model(x_t, t, mask_expanded)
 
         # Set the noise land values to 0
-        noise_pred[mask_expanded] = 0
-        noise[mask_expanded] = 0
+        #noise_pred[mask_expanded] = 0
+        #noise[mask_expanded] = 0
 
         #with record_function("calculate_MSE_loss"):
         # Calculate the loss
         mse_loss = (noise_pred - noise) ** 2
+        masked_mse_loss = mse_loss * ~mask_expanded
         ocean_elements = (~mask_expanded).sum()
-        loss = mse_loss.sum() / ocean_elements
+        loss = masked_mse_loss.sum() / ocean_elements
         curr_epoch_loss += loss.item()
         batch_loss += loss.item()
         every_10_batch_loss += loss.item()
@@ -116,7 +117,7 @@ for epoch in range(start_epoch, start_epoch + num_epochs):
     cumulative_mses.append(cumulative_mse_loss)
     print(f"Epoch [{epoch+1}/{start_epoch + num_epochs}] - Avg MSE: {avg_epoch_loss:.10f}, Cumulative MSE: {cumulative_mse_loss:.10f}")
 
-    if epoch % 50 == 49:
+    if epoch % 10 == 9:
         checkpoint = {
             'epoch': epoch + 1,
             'model_state_dict': model.state_dict(),
@@ -126,6 +127,6 @@ for epoch in range(start_epoch, start_epoch + num_epochs):
             'cumulative_mses': cumulative_mses,
         }
 
-        checkpoint_path = f'checkpoint{epoch + 1}.pth'
+        checkpoint_path = f'checkpoint{epoch + 1}_newmodel.pth'
         torch.save(checkpoint, checkpoint_path)
         print(f"Saved checkpoint at epoch {epoch+1} to {checkpoint_path}")
