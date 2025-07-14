@@ -114,15 +114,17 @@ class DiffusionModel(nn.Module):
             nn.Conv2d(base_channels, in_channels, kernel_size=3, padding=1)
         )
 
-    def forward(self, x, t, mask):
+    def forward(self, x, t, sparse_mask, land_mask):
         batch_size, _, h, w = x.shape
-        x = x * ~mask
+        x = x * (~sparse_mask)
 
         # Pad input to be divisible by 8
         pad_h = (8 - (h % 8)) % 8
         pad_w = (8 - (w % 8)) % 8
         if pad_h > 0 or pad_w > 0:
             x = F.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+            sparse_mask = F.pad(sparse_mask, (0, pad_w, 0, pad_h), mode='constant', value=1)
+            land_mask = F.pad(land_mask, (0, pad_w, 0, pad_h), mode='constant', value=1)
 
         # Time embeddings
         t = t.long().clamp(0, self.num_steps - 1)
@@ -156,7 +158,7 @@ class DiffusionModel(nn.Module):
         # Crop to original size
         if pad_h > 0 or pad_w > 0:
             x = x[:, :, :h, :w]
-
+            
         return x
     
 class Diffusion:
@@ -176,41 +178,43 @@ class Diffusion:
         self.alphas = self.alphas.to(device)
         self.alpha_cum_prod = self.alpha_cum_prod.to(device)
 
-    def forward_diffusion(self, x_0, t, mask):
+    def forward_diffusion(self, x_0, t, sparse_mask):
         noise = torch.randn_like(x_0, device=self.device, dtype=torch.float32)
-        masked_noise = noise * ~mask
+        #combined_mask = (~land_mask & ~sparse_mask)
+        x_0_masked = x_0 * ~sparse_mask
+        #masked_noise = noise * combined_mask
         #noise = torch.full(x_0.shape, 1e-6, device=self.device, dtype=torch.float32)
         t = t.to(dtype=torch.long)
-        alpha_cum_prod = self.alpha_cum_prod[t]
-        sqrt_alpha_cum_prod = torch.sqrt(alpha_cum_prod).view(-1, 1, 1, 1)
-        sqrt_1_minus_alpha_cum_prod = torch.sqrt(1.0 - alpha_cum_prod).view(-1, 1, 1, 1)
+        alpha_cum_prod = self.alpha_cum_prod[t].view(-1, 1, 1, 1)
+        sqrt_alpha_cum_prod = torch.sqrt(alpha_cum_prod)
+        sqrt_1_minus_alpha_cum_prod = torch.sqrt(1.0 - alpha_cum_prod)
 
-        x_t = sqrt_alpha_cum_prod * x_0 + sqrt_1_minus_alpha_cum_prod * masked_noise
-        x_t = x_t * (~mask) + x_0 * mask
+        x_t = (sparse_mask * ((sqrt_alpha_cum_prod * x_0) + (sqrt_1_minus_alpha_cum_prod * noise))) + x_0_masked
         return x_t, noise
     
-    def sample(self, shape, mask, device=None):
+    def sample(self, shape, x_0, sparse_mask, land_mask, device=None):
         if device is not None:
             self.set_device(device)
 
-        x_t = torch.randn(shape, device=self.device)
+        x_t_init = torch.randn(shape, device=self.device)
+        x_t = (sparse_mask * x_t_init) + (~sparse_mask * x_0)
 
         for t in reversed(range(self.num_steps)):
             t_tensor = torch.full((shape[0],), t, device=self.device, dtype=torch.long)
-            noise_pred = self.model(x_t, t_tensor, mask)
+            noise_pred = self.model(x_t, t_tensor, sparse_mask, land_mask)
 
             alpha_t = self.alphas[t]
             alpha_bar_t = self.alpha_cum_prod[t]
             beta_t = self.betas[t]
 
+            x_t_minus_1 = (1 / torch.sqrt(alpha_t)) * (x_t - (beta_t / torch.sqrt(1 - alpha_bar_t)) * noise_pred)
+            x_t_minus_1 = (sparse_mask * x_t_minus_1) + (~sparse_mask * x_0)
+
             if t > 0:
                 noise = torch.randn_like(x_t)
-                x_t = (1 / torch.sqrt(alpha_t)) * (x_t - (beta_t / torch.sqrt(1 - alpha_bar_t)) * noise_pred) + torch.sqrt(beta_t) * noise
-            else:
-                x_t = (1 / torch.sqrt(alpha_t)) * (x_t - (beta_t / torch.sqrt(1 - alpha_bar_t)) * noise_pred)
-            
-            x_t = torch.where(mask == 1, x_t, torch.full_like(x_t, float('nan')))
+                x_t_minus_1 = x_t_minus_1 + torch.sqrt(beta_t) * noise
+                
+            x_t = x_t_minus_1
 
-        x_t = torch.where(mask == 1, x_t, torch.full_like(x_t, float('nan')))
         return x_t
     

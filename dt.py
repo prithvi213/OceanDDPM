@@ -7,21 +7,38 @@ from diffusion_model import Diffusion, DiffusionModel
 import numpy as np
 import os
 import time
+#import optparse
+
+"""
+def process(args):
+    print(f"Positional arguments: {args}")
+"""
 
 # Initialize device and the masked locations
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(device)
-mask = torch.zeros((169, 300), dtype=torch.bool)
+#mask = torch.zeros((169, 300), dtype=torch.bool)
 
-with open('coordinates.txt', 'r') as file:
+"""
+parser = optparse.OptionParser()
+opts, args = parser.parse_args()
+process(args)
+
+
+with open(args[0], 'r') as file:
     for line in file:
         x, y = map(float, line.strip().split(','))
         mask[int(x), int(y)] = True
 
 mask = mask.unsqueeze(0).expand(4, -1, -1)
+"""
+
+land_mask = torch.load('mask.pth', map_location=device, weights_only=True)
+sparse_mask = torch.load('sparse.pth', map_location=device, weights_only=True)
 
 # Initialize OceanDataset, DataLoader, Diffusion Model, Sampler, and Optimizer
-dataset = OceanDataset(data_dir="./preprocessed_data")
+dataset = OceanDataset(data_dir='./preprocessed_data_half/')
+
 dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
 model = DiffusionModel().to(device)
 diffusion = Diffusion(model, num_steps=1000, beta_0=1e-4, beta_f=0.02, device=device)
@@ -30,6 +47,9 @@ num_epochs = 100
 epoch_losses = []
 cumulative_mses = []
 cumulative_mse_loss = 0.0
+training_file = torch.load('checkpoint90_newmodel.pth', map_location=device, weights_only=False)
+model.load_state_dict(training_file['model_state_dict'])
+criterion = nn.MSELoss()
 #checkpoint_path = './checkpoint.pth'
 
 # Load checkpoint if exists
@@ -47,9 +67,10 @@ else:
     print("No checkpoint found, starting training from epoch 1")
     start_epoch = 0
 """
+
 start_epoch = 0
 
-# Training Loop Starts Here (200 Epochs)
+# Training Loop Starts Here (100 Epochs)
 for epoch in range(start_epoch, start_epoch + num_epochs):
     # Start Training and Keep Track of Loss
     model.train()
@@ -68,7 +89,8 @@ for epoch in range(start_epoch, start_epoch + num_epochs):
 
         #with record_function("expand_mask"):
         # Expand the mask for batch use (Filtering out masked values from noise and mse loss)
-        mask_expanded = mask.unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
+        landmask_expanded = land_mask.unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
+        sparsemask_expanded = sparse_mask.unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
 
         #with record_function("random_ts"):
         # Take a time step from random and start the zero-gradient for optimizer
@@ -77,10 +99,10 @@ for epoch in range(start_epoch, start_epoch + num_epochs):
         
         #with record_function("forward_diffusion"):
         # Apply forward diffusion and ensure that the mask is applied to the predicted noise
-        x_t, noise = diffusion.forward_diffusion(x_0, t, mask_expanded)
+        x_t, noise = diffusion.forward_diffusion(x_0, t, sparsemask_expanded)
         
         #with record_function("apply_to_model"):
-        noise_pred = model(x_t, t, mask_expanded)
+        noise_pred = model(x_t, t, sparsemask_expanded, landmask_expanded)
 
         # Set the noise land values to 0
         #noise_pred[mask_expanded] = 0
@@ -89,8 +111,8 @@ for epoch in range(start_epoch, start_epoch + num_epochs):
         #with record_function("calculate_MSE_loss"):
         # Calculate the loss
         mse_loss = (noise_pred - noise) ** 2
-        masked_mse_loss = mse_loss * ~mask_expanded
-        ocean_elements = (~mask_expanded).sum()
+        masked_mse_loss = mse_loss * (sparsemask_expanded)
+        ocean_elements = (sparsemask_expanded).sum()
         loss = masked_mse_loss.sum() / ocean_elements
         curr_epoch_loss += loss.item()
         batch_loss += loss.item()
@@ -127,6 +149,6 @@ for epoch in range(start_epoch, start_epoch + num_epochs):
             'cumulative_mses': cumulative_mses,
         }
 
-        checkpoint_path = f'checkpoint{epoch + 1}_newmodel.pth'
+        checkpoint_path = f'checkpoint{epoch + 1}_withsparsity.pth'
         torch.save(checkpoint, checkpoint_path)
         print(f"Saved checkpoint at epoch {epoch+1} to {checkpoint_path}")
